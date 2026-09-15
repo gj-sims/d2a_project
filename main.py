@@ -28,3 +28,47 @@ if len(nodes) == 0:
 for market in nodes:
     print(market.name, market.price)
 
+# this is the wrong approach I need to write the LP I'm headed towards
+
+'''
+
+decision variables:
+
+edges -- in {0,1}
+
+
+max delta_w: 
+
+subject to
+
+existing_connections:
+
+budget:
+
+transmission loss:
+
+supply x demand fuctions:
+
+flow constraint: sum_ji
+
+decision variables:
+
+x_ij in connection_matrix for node i -> j
+p_i is auturky price in market i
+q_i is auturky quantity in market i
+tr_i is transmission loss in market i
+cp_i is connected price
+cq_i is connected quantity
+
+for all x_ij = 1, p_i < p_j * tr_i => connection update
+
+p_i = fn_d(q_i) = fn_s(q_i)  ---- but I need to include the flow 
+
+
+
+
+
+
+
+
+'''

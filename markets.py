@@ -42,19 +42,21 @@ class Market:
 
         # Flow Constraints
         self.constr = 'TBD'
+        self.random_placeholder = np.random.default_rng()
 
         # Location
         self.lat = None
         self.lon = None
 
     # Should connections be one-way or 2 way?
-    def connect(self, Market):
+    def connect(self, market: Market):
         # Check if connected
         for conn in self.connections:
-            if conn[0] == Market:
+            if conn[0] == market:
                 return "Existing Connection"
             else:
-                self.connections.add([Market, "TBD"])
+                self.connections.add([market, "TBD"])
+                return f"{self.name} connected to {market.name}"
 
     # Plot functions
     def plot_functions(market):
@@ -147,7 +149,12 @@ class Market:
             else: 
                 print(f"Equilibrium not found for {self.name} in time")
         else:
-            # Connected market EQ
+            # Connected market EQ, also need to determine who gets to transfer first probably
+            for m in self.connections:
+                if self.price > m[0].price * self.random_placeholder.random():
+                    # Transfer
+                    supply() - demand() 
+
             return
 
 
