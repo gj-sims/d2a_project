@@ -169,9 +169,6 @@ def plot_dfs(dfs):
     plt.tight_layout()
     plt.show()
     
-dfs = load_dfs()
-plot_dfs(dfs)
-
 
 
 # I should make a folder for this project and make some oop infrastructure 
