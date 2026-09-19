@@ -22,11 +22,16 @@ def create_nodes():
         market.find_price()
 
 
+
 if len(nodes) == 0:
     create_nodes()
 
 for market in nodes:
     print(market.name, market.price)
+
+for market in nodes:
+    market.plot_functions("quantity")
+
 
 # this is the wrong approach I need to write the LP I'm headed towards
 
