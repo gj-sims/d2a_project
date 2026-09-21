@@ -67,7 +67,9 @@ cq_i is connected quantity
 
 for all x_ij = 1, p_i < p_j * tr_i => connection update
 
-p_i = fn_d(q_i) = fn_s(q_i)  ---- but I need to include the flow 
+p_i = fn_d(q_i) = fn_s(q_i)  ---- but I need to include the flow
+
+
 
 
 
