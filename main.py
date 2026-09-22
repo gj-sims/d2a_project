@@ -1,8 +1,10 @@
 # Main for D2A Project
 from load_data import load_dfs
 from markets import Market
+from constants import Constants
 
 nodes = []
+problem = Constants()
 
 
 # Initialize Markets
@@ -26,17 +28,25 @@ def create_nodes():
 if len(nodes) == 0:
     create_nodes()
 
-#Current total surplus
-total_surplus = 0
-for market in nodes:
-    print(market.name)
-    print("TOTAL SURPLUS", total_surplus)
-    if market.name == 'ro':
-        continue
+problem.connect(nodes[0],nodes[2])
 
-    print(market.name, market.find_producer_surplus())
-    total_surplus+= int(market.find_producer_surplus())
-    total_surplus+= int(market.find_consumer_surplus())
+print(problem.connection_matrix)
+    
+
+# #Current total surplus
+# total_surplus = 0
+# for market in nodes:
+#     print(market.name)
+#     print("TOTAL SURPLUS", total_surplus)
+#     if market.name == 'ro':
+#         continue
+
+#     print(market.name, market.find_producer_surplus())
+#     total_surplus+= int(market.find_producer_surplus())
+#     total_surplus+= int(market.find_consumer_surplus())
+
+
+# NEED TO INITIALIZE PROBLEM
 
 
 
