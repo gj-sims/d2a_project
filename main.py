@@ -24,14 +24,16 @@ def create_nodes():
         market.find_price()
 
 
-
+# Initialze Markets
 if len(nodes) == 0:
     create_nodes()
 
-#Node name by index
+# Print node indexes for reference
 for i in range(len(nodes)):
     print(i,nodes[i].name)
 
+
+# Make Some Connections
 problem.connect(nodes[0],nodes[2])
 
 print(problem.connection_matrix)
