@@ -28,6 +28,10 @@ def create_nodes():
 if len(nodes) == 0:
     create_nodes()
 
+#Node name by index
+for i in range(len(nodes)):
+    print(i,nodes[i].name)
+
 problem.connect(nodes[0],nodes[2])
 
 print(problem.connection_matrix)
