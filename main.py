@@ -29,11 +29,17 @@ if len(nodes) == 0:
 for market in nodes:
     print(market.name, market.price)
 
-for market in nodes:
-    market.plot_functions("quantity")
+# for market in nodes:
+#     market.plot_functions("quantity")
 
+for market in nodes:
+    CS = market.find_consumer_surplus(market.quantity, market.price)
+    PS = market.find_producer_surplus(market.quantity, market.price)
+    print(market.name, f"Consumer Surplus: {CS}", f"Producer Surplus: {PS}")
 
 # this is the wrong approach I need to write the LP I'm headed towards
+for market in nodes:
+    market.plot_surplus()
 
 '''
 

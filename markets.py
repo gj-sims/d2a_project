@@ -81,6 +81,7 @@ class Market:
         self.lat = None
         self.lon = None
 
+
     # Should connections be one-way or 2 way?
     def connect(self, market):
         # Check if connected
@@ -169,12 +170,180 @@ class Market:
         plt.grid(True)
         plt.show()
 
+       # Consumer and Producer Surpluses
+    def integrate_step(self, x, y, upper):
+        """
+        Integrate a step function from x[0] to upper.
 
-    def find__consumer_surplus():
-        return
+        The function assumes:
+            y[i] applies from x[i] to x[i+1]
 
-    def find_supplier_surplus():
-        return
+        This matches scipy interp1d(..., kind="previous").
+        """
+        total = 0
+
+        for i in range(len(x) - 1):
+            left = x[i]
+            right = min(x[i + 1], upper)
+
+            if right > left:
+                total += y[i] * (right - left)
+
+            if x[i + 1] >= upper:
+                break
+
+        return total
+
+    def find_consumer_surplus(self, quantity, price):
+        """
+        Consumer surplus at a given equilibrium quantity and price.
+        """
+        demand_area = self.integrate_step(
+            self.demand["quantity"].to_numpy(),
+            self.demand["price"].to_numpy(),
+            quantity
+        )
+
+        return demand_area - price * quantity
+
+    def find_producer_surplus(self, quantity, price):
+        """
+        Producer surplus at a given equilibrium quantity and price.
+        """
+        supply_area = self.integrate_step(
+            self.supply["quantity"].to_numpy(),
+            self.supply["price"].to_numpy(),
+            quantity
+        )
+
+        return price * quantity - supply_area
+
+    def plot_surplus(self):
+        """
+        Plot the exact rectangles used by the surplus calculations.
+
+        The shaded areas correspond directly to the calculations in
+        find_consumer_surplus() and find_supplier_surplus().
+        """
+        if self.quantity is None or self.price is None:
+            print("No equilibrium has been found.")
+            return
+
+        Q = self.quantity
+        P = self.price
+
+        supply_x = self.supply["quantity"].to_numpy()
+        supply_y = self.supply["price"].to_numpy()
+
+        demand_x = self.demand["quantity"].to_numpy()
+        demand_y = self.demand["price"].to_numpy()
+
+        # Calculate surplus using the actual functions
+        consumer_surplus = self.find_consumer_surplus(Q, P)
+        supplier_surplus = self.find_producer_surplus(Q, P)
+
+        plt.figure(figsize=(12, 7))
+
+        # Plot supply and demand
+        plt.step(
+            supply_x,
+            supply_y,
+            where="post",
+            label="Supply"
+        )
+
+        plt.step(
+            demand_x,
+            demand_y,
+            where="post",
+            label="Demand"
+        )
+
+        # ---------------------------------------------------------
+        # Consumer surplus
+        # ---------------------------------------------------------
+        for i in range(len(demand_x) - 1):
+            left = demand_x[i]
+            right = min(demand_x[i + 1], Q)
+
+            if right <= left:
+                break
+
+            height = demand_y[i]
+
+            # Only shade the portion ABOVE equilibrium price
+            if height > P:
+                plt.fill_between(
+                    [left, right],
+                    P,
+                    height,
+                    step="post",
+                    alpha=0.3
+                )
+
+        # ---------------------------------------------------------
+        # Producer surplus
+        # ---------------------------------------------------------
+        for i in range(len(supply_x) - 1):
+            left = supply_x[i]
+            right = min(supply_x[i + 1], Q)
+
+            if right <= left:
+                break
+
+            height = supply_y[i]
+
+            # Only shade the portion BELOW equilibrium price
+            if height < P:
+                plt.fill_between(
+                    [left, right],
+                    height,
+                    P,
+                    step="post",
+                    alpha=0.3
+                )
+
+        # Equilibrium price
+        plt.axhline(
+            P,
+            linestyle="--",
+            label=f"Equilibrium price = {P:.2f}"
+        )
+
+        # Equilibrium quantity
+        plt.axvline(
+            Q,
+            linestyle="--",
+            label=f"Equilibrium quantity = {Q:.2f}"
+        )
+
+        # Equilibrium point
+        plt.scatter(
+            [Q],
+            [P],
+            zorder=5
+        )
+
+        # Display surplus values
+        plt.text(
+            Q * 0.05,
+            P * 1.05,
+            f"Consumer surplus = {consumer_surplus:.2f}"
+        )
+
+        plt.text(
+            Q * 0.05,
+            P * 0.85,
+            f"Producer surplus = {supplier_surplus:.2f}"
+        )
+
+        plt.xlabel("Quantity")
+        plt.ylabel("Price")
+        plt.title(f"{self.name} — Consumer and Producer Surplus")
+        plt.legend()
+        plt.grid(True)
+
+        plt.show()
     
 
     def find_price(self):
@@ -225,6 +394,5 @@ class Market:
             #         supply() - demand() 
 
             return
-
 
         
