@@ -26,20 +26,40 @@ def create_nodes():
 if len(nodes) == 0:
     create_nodes()
 
+#Current total surplus
+total_surplus = 0
 for market in nodes:
-    print(market.name, market.price)
+    print(market.name)
+    print("TOTAL SURPLUS", total_surplus)
+    if market.name == 'ro':
+        continue
+
+    print(market.name, market.find_producer_surplus())
+    total_surplus+= int(market.find_producer_surplus())
+    total_surplus+= int(market.find_consumer_surplus())
+
+
+
+# for market in nodes:
+#     print(market.name, market.find_producer_surplus())
+#     market.plot_producer_surplus()
+
+# for market in nodes:
+#     print(market.name, market.price)
+
 
 # for market in nodes:
 #     market.plot_functions("quantity")
 
-for market in nodes:
-    CS = market.find_consumer_surplus(market.quantity, market.price)
-    PS = market.find_producer_surplus(market.quantity, market.price)
-    print(market.name, f"Consumer Surplus: {CS}", f"Producer Surplus: {PS}")
+# #Vibecoding didn't work I need to do myself
+# for market in nodes:
+#     CS = market.find_consumer_surplus(market.quantity, market.price)
+#     PS = market.find_producer_surplus(market.quantity, market.price)
+#     print(market.name, f"Consumer Surplus: {CS}", f"Producer Surplus: {PS}")
 
-# this is the wrong approach I need to write the LP I'm headed towards
-for market in nodes:
-    market.plot_surplus()
+# # this is the wrong approach I need to write the LP I'm headed towards
+# for market in nodes:
+#     market.plot_surplus()
 
 '''
 

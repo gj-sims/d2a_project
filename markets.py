@@ -1,7 +1,10 @@
 # Market class
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.integrate import quad
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize_scalar
+
 
 class Market:
     def __init__(self, name, df):
@@ -170,109 +173,93 @@ class Market:
         plt.grid(True)
         plt.show()
 
-       # Consumer and Producer Surpluses
-    def integrate_step(self, x, y, upper):
-        """
-        Integrate a step function from x[0] to upper.
 
-        The function assumes:
-            y[i] applies from x[i] to x[i+1]
+    def find_consumer_surplus(self):
+        # Find minimum domain
+        min = self.demand_function.x.min()
 
-        This matches scipy interp1d(..., kind="previous").
-        """
-        total = 0
+        # Integrate functoin
+        integral_value, error = quad(self.demand_function,
+                                      min,
+                                        self.quantity)
 
-        for i in range(len(x) - 1):
-            left = x[i]
-            right = min(x[i + 1], upper)
+        # Subtract area below price
+        non_surplus_area = (self.quantity - min) * self.price
+        consumer_surplus = integral_value - non_surplus_area
 
-            if right > left:
-                total += y[i] * (right - left)
+        return consumer_surplus
 
-            if x[i + 1] >= upper:
-                break
 
-        return total
 
-    def find_consumer_surplus(self, quantity, price):
-        """
-        Consumer surplus at a given equilibrium quantity and price.
-        """
-        demand_area = self.integrate_step(
-            self.demand["quantity"].to_numpy(),
-            self.demand["price"].to_numpy(),
-            quantity
-        )
+    def find_producer_surplus(self):
+       # Find price at minimum value
+       min_y = self.supply_function.y.min()
+       min_x = self.supply_function.x.min()
 
-        return demand_area - price * quantity
+       if min_y >= 0:
+           # Find surplus area
+           surplus_area = (self.quantity-min_x) * self.price
+           # Subtract integral
+           integral_value, error = quad(self.supply_function,
+                                        min_x,
+                                        self.quantity)
+           producer_surplus = surplus_area - integral_value
+       else:
+           # Shift up so graph is only in Q1
+           shifted_supply = lambda x: self.supply_function(x) + -min_y
+           # Find surplus area
+           surplus_area = (self.quantity-min_x) * (self.price - min_y)
+           # Subtract integral
+           integral_value, error = quad(shifted_supply,
+                                        min_x,
+                                        self.quantity)
+           producer_surplus = surplus_area - integral_value
 
-    def find_producer_surplus(self, quantity, price):
-        """
-        Producer surplus at a given equilibrium quantity and price.
-        """
-        supply_area = self.integrate_step(
-            self.supply["quantity"].to_numpy(),
-            self.supply["price"].to_numpy(),
-            quantity
-        )
+       return producer_surplus
 
-        return price * quantity - supply_area
-
-    def plot_surplus(self):
-        """
-        Plot the exact rectangles used by the surplus calculations.
-
-        The shaded areas correspond directly to the calculations in
-        find_consumer_surplus() and find_supplier_surplus().
-        """
-        if self.quantity is None or self.price is None:
-            print("No equilibrium has been found.")
-            return
-
+    
+    def plot_consumer_surplus(self):
+        min_quantity = self.demand_function.x.min()
         Q = self.quantity
         P = self.price
 
-        supply_x = self.supply["quantity"].to_numpy()
-        supply_y = self.supply["price"].to_numpy()
-
-        demand_x = self.demand["quantity"].to_numpy()
-        demand_y = self.demand["price"].to_numpy()
-
-        # Calculate surplus using the actual functions
-        consumer_surplus = self.find_consumer_surplus(Q, P)
-        supplier_surplus = self.find_producer_surplus(Q, P)
+        total_area = 0
+        surplus_area = 0
 
         plt.figure(figsize=(12, 7))
 
-        # Plot supply and demand
-        plt.step(
-            supply_x,
-            supply_y,
-            where="post",
-            label="Supply"
-        )
+        # Plot demand
+        x = self.demand_function.x
+        y = self.demand_function.y
 
         plt.step(
-            demand_x,
-            demand_y,
+            x,
+            y,
             where="post",
             label="Demand"
         )
 
-        # ---------------------------------------------------------
-        # Consumer surplus
-        # ---------------------------------------------------------
-        for i in range(len(demand_x) - 1):
-            left = demand_x[i]
-            right = min(demand_x[i + 1], Q)
+        # Sum and display the rectangles
+        for i in range(len(x) - 1):
+
+            left = x[i]
+            right = min(x[i + 1], Q)
 
             if right <= left:
-                break
+                continue
 
-            height = demand_y[i]
+            height = y[i]
+            width = right - left
 
-            # Only shade the portion ABOVE equilibrium price
+            # Area under demand curve
+            rectangle_area = width * height
+            total_area += rectangle_area
+
+            # Surplus portion of this rectangle
             if height > P:
+                surplus_rectangle = width * (height - P)
+                surplus_area += surplus_rectangle
+
                 plt.fill_between(
                     [left, right],
                     P,
@@ -281,29 +268,137 @@ class Market:
                     alpha=0.3
                 )
 
-        # ---------------------------------------------------------
-        # Producer surplus
-        # ---------------------------------------------------------
-        for i in range(len(supply_x) - 1):
-            left = supply_x[i]
-            right = min(supply_x[i + 1], Q)
+            # Show the individual rectangle boundary
+            plt.plot(
+                [left, right, right],
+                [height, height, height],
+                linestyle=":",
+                alpha=0.5
+            )
 
-            if right <= left:
+            if right >= Q:
                 break
 
-            height = supply_y[i]
+        # Rectangle below equilibrium price
+        non_surplus_area = (Q - min_quantity) * P
 
-            # Only shade the portion BELOW equilibrium price
-            if height < P:
-                plt.fill_between(
-                    [left, right],
-                    height,
-                    P,
-                    step="post",
-                    alpha=0.3
-                )
+        # This should equal your find_consumer_surplus()
+        calculated_surplus = total_area - non_surplus_area
 
         # Equilibrium price
+        plt.axhline(
+            P,
+            linestyle="--",
+            label=f"Equilibrium price = {P:.2f}"
+        )
+
+        # Equilibrium quantity
+        plt.axvline(
+            Q,
+            linestyle="--",
+            label=f"Equilibrium quantity = {Q:.2f}"
+        )
+
+        plt.scatter(
+            [Q],
+            [P],
+            zorder=5
+        )
+
+        plt.text(
+            min_quantity,
+            P,
+            f"  CS = {calculated_surplus:.2f}"
+        )
+
+        plt.xlabel("Quantity")
+        plt.ylabel("Price")
+        plt.title(f"{self.name} — Consumer Surplus")
+        plt.legend()
+        plt.grid(True)
+
+        plt.show()
+
+        print(f"Area under demand:       {total_area:.4f}")
+        print(f"Area below price:        {non_surplus_area:.4f}")
+        print(f"Consumer surplus:        {calculated_surplus:.4f}")
+        print(f"find_consumer_surplus(): {self.find_consumer_surplus():.4f}")
+
+    def plot_producer_surplus(self):
+        min_y = self.supply_function.y.min()
+        min_x = self.supply_function.x.min()
+
+        Q = self.quantity
+        P = self.price
+
+        # Shift supply curve if it has negative values
+        if min_y < 0:
+            shift = -min_y
+            shifted_supply = lambda x: self.supply_function(x) + shift
+        else:
+            shift = 0
+            shifted_supply = self.supply_function
+
+        x = self.supply_function.x
+        y = self.supply_function.y
+
+        rectangle_integral = 0
+        rectangle_surplus = 0
+
+        plt.figure(figsize=(12, 7))
+
+        # Supply curve
+        plt.step(
+            x,
+            y,
+            where="post",
+            label="Supply"
+        )
+
+        # --------------------------------------------------
+        # Rectangles
+        # --------------------------------------------------
+        for i in range(len(x) - 1):
+
+            left = x[i]
+            right = min(x[i + 1], Q)
+
+            if right <= left:
+                continue
+
+            width = right - left
+            height = y[i]
+
+            # Area under the original supply curve
+            rectangle_integral += height * width
+
+            # Producer surplus rectangle:
+            # area between supply price and equilibrium price
+            rectangle_area = (P - height) * width
+            rectangle_surplus += rectangle_area
+
+            plt.fill_between(
+                [left, right],
+                height,
+                P,
+                step="post",
+                alpha=0.3
+            )
+
+            if right >= Q:
+                break
+
+        # --------------------------------------------------
+        # Quad calculation
+        # --------------------------------------------------
+        quad_ps = self.find_producer_surplus()
+
+        # Difference between rectangle and quad
+        delta = rectangle_surplus - quad_ps
+
+        # --------------------------------------------------
+        # Equilibrium price
+        # --------------------------------------------------
         plt.axhline(
             P,
             linestyle="--",
@@ -324,27 +419,21 @@ class Market:
             zorder=5
         )
 
-        # Display surplus values
-        plt.text(
-            Q * 0.05,
-            P * 1.05,
-            f"Consumer surplus = {consumer_surplus:.2f}"
-        )
-
-        plt.text(
-            Q * 0.05,
-            P * 0.85,
-            f"Producer surplus = {supplier_surplus:.2f}"
-        )
+        # --------------------------------------------------
+        # Display values
+        # --------------------------------------------------
+        print(f"PS from rectangles: {rectangle_surplus:.6f}")
+        print(f"PS from quad:       {quad_ps:.6f}")
+        print(f"Delta:              {delta:.6f}")
 
         plt.xlabel("Quantity")
         plt.ylabel("Price")
-        plt.title(f"{self.name} — Consumer and Producer Surplus")
+        plt.title(f"{self.name} — Producer Surplus")
         plt.legend()
         plt.grid(True)
 
         plt.show()
-    
+
 
     def find_price(self):
         # Find Price in Auturky
@@ -387,11 +476,15 @@ class Market:
             else: 
                 print(f"Equilibrium not found for {self.name} in time")
         else:
-            # Connected market EQ, also need to determine who gets to transfer first probably
-            # for m in self.connections:
-            #     if self.price > m[0].price * self.random_placeholder.random():
-            #         # Transfer
-            #         supply() - demand() 
+            # There must exist a matrix of the connection
+            # Using that matrix I would need to add to the list of connections for each market object
+            # Then I would need to get the transmission loss, 
+            # set up a system of equations using transmission loss and the inverted functions, and find price
+            # resubtitute respectively to find the quantity
+            # calculate the new surplus and the delta surplus
+            # Then redo this all in a way gurobi can handle
+            # Then add Daniels part
+
 
             return
 
