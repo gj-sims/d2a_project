@@ -68,6 +68,7 @@ class Constants:
         i_index = self.index_dict.get(i.name)
         j_index = self.index_dict.get(j.name)
         self.cost_to_create_matrix[i_index][j_index] = int(1.6 * self.distance(i,j))
+        # https://www.nationalgrid.com/document/282876/download <- 1.6 figure
         return 
 
 
