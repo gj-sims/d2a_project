@@ -80,6 +80,9 @@ class Market:
         self.constr = 'TBD'
         self.random_placeholder = np.random.default_rng()
 
+        self.adj_price = None
+        self.adj_quantity = None
+
         # Location
         self.lat = None
         self.lon = None
@@ -216,6 +219,81 @@ class Market:
            producer_surplus = surplus_area - integral_value
 
        return producer_surplus
+
+
+    def adj_find_consumer_surplus(self):
+        # Autarky price = self.price
+        # Connected-market price = self.adj_price
+
+        min_x = self.demand_function.x.min()
+
+        # Quantity demanded at connected-market price
+        quantity_demanded = self.inverse_demand(self.adj_price)
+
+        # Integrate demand curve up to connected quantity
+        integral_value, error = quad(
+            self.demand_function,
+            min_x,
+            quantity_demanded
+        )
+
+        # Area below connected-market price
+        non_surplus_area = (
+            quantity_demanded - min_x
+        ) * self.adj_price
+
+        consumer_surplus = integral_value - non_surplus_area
+
+        return consumer_surplus
+
+
+    def adj_find_producer_surplus(self):
+        # Autarky price = self.price
+        # Connected-market price = self.adj_price
+
+        min_y = self.supply_function.y.min()
+        min_x = self.supply_function.x.min()
+
+        # Quantity supplied at connected-market price
+        quantity_supplied = self.inverse_supply(self.adj_price)
+
+        if min_y >= 0:
+            # Area below connected-market price
+            surplus_area = (
+                quantity_supplied - min_x
+            ) * self.adj_price
+
+            # Subtract area below supply curve
+            integral_value, error = quad(
+                self.supply_function,
+                min_x,
+                quantity_supplied
+            )
+
+            producer_surplus = surplus_area - integral_value
+
+        else:
+            # Shift supply curve up so graph is only in Q1
+            shifted_supply = lambda x: (
+                self.supply_function(x) + -min_y
+            )
+
+            # Area below connected-market price
+            surplus_area = (
+                quantity_supplied - min_x
+            ) * (self.adj_price - min_y)
+
+            # Subtract shifted supply curve
+            integral_value, error = quad(
+                shifted_supply,
+                min_x,
+                quantity_supplied
+            )
+
+            producer_surplus = surplus_area - integral_value
+
+        return producer_surplus
+
 
     
     def plot_consumer_surplus(self):
@@ -451,7 +529,7 @@ class Market:
             sup = self.supply_function(mid)
             dem = self.demand_function(mid)
             i = 0
-            for j in range(30):
+            for j in range(300):
 
                 mid = (both_max + both_min) / 2
 
@@ -463,14 +541,14 @@ class Market:
                 else:
                     both_min = mid
 
-                if both_max - both_min < 1:
+                if both_max - both_min < .0001:
                     self.quantity = mid
                     self.price = self.demand_function(mid)
                     break
 
                 
                 i+= 1
-            if i < 30:
+            if i < 300:
                 self.quantity = mid
                 self.price = self.demand_function(mid)
                 print(f"Equilibrium Found for {self.name}")

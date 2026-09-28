@@ -116,7 +116,7 @@ for i in range(len(problem.connection_matrix)):
             for mar_1 in problem.nodes:
                 for mar_2 in problem.nodes:
                     if problem.index_dict.get(mar_1.name) == i and  problem.index_dict.get(mar_2.name) == j:
-                        print(mar_1.name, mar_2.name, problem.worth_transfering(mar_1,mar_2), '|', mar_1.price, mar_2.price, 
+                        print(mar_1.name, mar_2.name, problem.worth_transfering(mar_1,mar_2),  problem.worth_transfering(mar_2,mar_1), '|', mar_1.price, mar_2.price, 
                               problem.transmission_loss_matrix[problem.index_dict.get(mar_1.name)][ problem.index_dict.get(mar_2.name)] )
 
 
@@ -126,16 +126,22 @@ post_surplus = 0
 for market in problem.nodes:
     if market.name == 'ro' or market.name == 'pl':
             continue
-    post_surplus += market.find_consumer_surplus() + market.find_producer_surplus()
+    post_surplus += market.adj_find_consumer_surplus() + market.adj_find_producer_surplus()
 print("SURPLUSS:", post_surplus)
 
-
-print("DID THIS WORK (NO!)", post_surplus-pre_surplus)
+ 
+print("DID THIS WORK (NO!)", post_surplus-pre_surplus) 
 
 # for market in problem.nodes:
 #     market.plot_functions("quantity")
 #     market.plot_functions("price")
-    
+
+for market in problem.nodes:
+    if market.name == 'ro' or market.name == 'pl':
+        continue
+    print(market.name, market.adj_price-market.price)
+
+
 
 # #Current total surplus
 # total_surplus = 0
@@ -215,7 +221,7 @@ print("DID THIS WORK (NO!)", post_surplus-pre_surplus)
 
 
 
-
+# MAYBE ITS BECAUSE THERE IS NO UNIQUE SOLUTION?
 
 
 
