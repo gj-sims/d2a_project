@@ -3,8 +3,9 @@ from load_data import load_dfs
 from markets import Market
 from constants import Constants
 
-nodes = []
 problem = Constants()
+problem.nodes = []
+
 
 
 # Initialize Markets
@@ -18,7 +19,7 @@ def create_nodes():
 
         # Create Market
         market = Market(df, dfs[df])
-        nodes.append(market)
+        problem.nodes.append(market)
 
         # Find Auturky Prices
         market.find_price()
@@ -26,7 +27,7 @@ def create_nodes():
 
 def add_coordinates():
     # ignoring pl and ro for now
-    for market in nodes:
+    for market in problem.nodes:
         if market.name == 'at':
             market.lat = 48.2085
             market.lon = 16.3721
@@ -65,19 +66,19 @@ def add_coordinates():
 
 
 # Initialze Markets
-if len(nodes) == 0:
+if len(problem.nodes) == 0:
     create_nodes()
 
 # Print node indexes for reference
-for i in range(len(nodes)):
-    print(i,nodes[i].name)
+for i in range(len(problem.nodes)):
+    print(i,problem.nodes[i].name)
 
 # Add coordinates
 add_coordinates()
 
 # Add cost to create connections
-for i in nodes:
-    for j in nodes:
+for i in problem.nodes:
+    for j in problem.nodes:
         if ((i.name == 'pl') or (j.name == 'pl')):
             continue
         elif ((i.name == 'ro') or (j.name == 'ro')):
@@ -88,21 +89,52 @@ for i in nodes:
 #print("CREATE MATRIX",problem.cost_to_create_matrix)
 
 # Make Some Connections
-problem.connect(nodes[7],nodes[9])
-problem.connect(nodes[7],nodes[3])
-problem.connect(nodes[3],nodes[8])
-problem.connect(nodes[8],nodes[6])
-problem.connect(nodes[6],nodes[0])
-problem.connect(nodes[2],nodes[0])
-problem.connect(nodes[0],nodes[5])
-problem.connect(nodes[6],nodes[4])
-problem.connect(nodes[4],nodes[10])
-problem.connect(nodes[4],nodes[1])
-problem.connect(nodes[10],nodes[1])
+problem.connect(problem.nodes[7],problem.nodes[9])
+problem.connect(problem.nodes[7],problem.nodes[3])
+problem.connect(problem.nodes[3],problem.nodes[8])
+problem.connect(problem.nodes[8],problem.nodes[6])
+problem.connect(problem.nodes[6],problem.nodes[0])
+problem.connect(problem.nodes[2],problem.nodes[0])
+problem.connect(problem.nodes[0],problem.nodes[5])
+problem.connect(problem.nodes[6],problem.nodes[4])
+problem.connect(problem.nodes[4],problem.nodes[10])
+problem.connect(problem.nodes[4],problem.nodes[1])
+problem.connect(problem.nodes[10],problem.nodes[1])
 
-
+pre_surplus = 0
+for market in problem.nodes:
+    if market.name == 'ro' or market.name == 'pl':
+        continue
+    pre_surplus += market.find_consumer_surplus() + market.find_producer_surplus()
+print("SURPLUSS:", pre_surplus)
 
 print(problem.connection_matrix)
+
+for i in range(len(problem.connection_matrix)):
+    for j in range(len(problem.connection_matrix)):
+        if problem.connection_matrix[i][j] == 1:
+            for mar_1 in problem.nodes:
+                for mar_2 in problem.nodes:
+                    if problem.index_dict.get(mar_1.name) == i and  problem.index_dict.get(mar_2.name) == j:
+                        print(mar_1.name, mar_2.name, problem.worth_transfering(mar_1,mar_2), '|', mar_1.price, mar_2.price, 
+                              problem.transmission_loss_matrix[problem.index_dict.get(mar_1.name)][ problem.index_dict.get(mar_2.name)] )
+
+
+problem.network_adjust()
+
+post_surplus = 0
+for market in problem.nodes:
+    if market.name == 'ro' or market.name == 'pl':
+            continue
+    post_surplus += market.find_consumer_surplus() + market.find_producer_surplus()
+print("SURPLUSS:", post_surplus)
+
+
+print("DID THIS WORK (NO!)", post_surplus-pre_surplus)
+
+# for market in problem.nodes:
+#     market.plot_functions("quantity")
+#     market.plot_functions("price")
     
 
 # #Current total surplus
@@ -130,8 +162,6 @@ print(problem.connection_matrix)
 #     print(market.name, market.price)
 
 
-# for market in nodes:
-#     market.plot_functions("quantity")
 
 # #Vibecoding didn't work I need to do myself
 # for market in nodes:
@@ -177,6 +207,8 @@ print(problem.connection_matrix)
 
 # p_i = fn_d(q_i) = fn_s(q_i)  ---- but I need to include the flow
 # '''
+
+# constr: s_i(p)+Q+Q =demand eq where binary flags are there if transfering mmakes sense
 
 
 

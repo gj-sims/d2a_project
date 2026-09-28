@@ -100,7 +100,7 @@ class Market:
 
         supply = self.supply
         demand = self.demand
-
+ 
         plt.figure(figsize=(10, 6))
 
         if input == "quantity":
@@ -464,10 +464,11 @@ class Market:
                     both_min = mid
 
                 if both_max - both_min < 1:
+                    self.quantity = mid
+                    self.price = self.demand_function(mid)
                     break
 
-                self.quantity = mid
-                self.price = self.demand_function(mid)
+                
                 i+= 1
             if i < 30:
                 self.quantity = mid
