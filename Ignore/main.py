@@ -142,6 +142,9 @@ for market in problem.nodes:
     print(market.name, market.adj_price-market.price)
 
 
+for market in problem.nodes:
+    if market.name == 'dk':
+        market.plot_functions()
 
 # #Current total surplus
 # total_surplus = 0

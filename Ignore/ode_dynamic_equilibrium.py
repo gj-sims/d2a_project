@@ -17,7 +17,6 @@ For each candidate edge, we:
 
 Then greedily add edges under budget.
 """
-
 from __future__ import annotations
 
 import contextlib
@@ -27,19 +26,28 @@ from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 
-from network_fix import build_problem, total_surplus
+from network_fix import build_problem, solve_network_prices, total_surplus
 
 Edge = Tuple[str, str]
 
 
+def _fmt_price(value):
+    return "None" if value is None else f"{float(value):.4f}"
+
+
 def _quiet_build(extra_edges: Sequence[Edge] = ()):
-    """Build network and solve with fixed-point dynamics."""
+    """Build network and solve with the ODE-style dynamic solver.
+
+    Uses the tâtonnement-like `dynamic_solve()` defined below so this
+    wrapper preserves the original ODE-based intent.
+    """
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
         problem, markets = build_problem()
         for left, right in extra_edges:
             if left in markets and right in markets:
                 problem.connect(markets[left], markets[right])
+        # run the ODE-inspired price dynamics (safe, damped updates)
         dynamic_solve(problem, markets)
     return problem, markets
 
@@ -55,72 +63,90 @@ def dynamic_solve(
     This avoids requiring derivatives, so it works with stepwise curves.
     """
     
-    prices = {name: market.price for name, market in markets.items()}
-    
+    # Improved tâtonnement-style dynamics with damping and scaled steps.
+    # Scale updates by local volume to avoid huge jumps, cap relative
+    # change per iteration, and relax updates to stabilize oscillations.
+    prices = {name: float(market.price) for name, market in markets.items()}
+
+    relax = 0.5  # relaxation between old and proposed prices
+    rel_change_cap = 0.2  # max relative change per iteration (20%)
+    # adapt alpha default to be slightly larger but scaled inside loop
     for iteration in range(max_iter):
-        new_prices = dict(prices)
-        
+        proposed = dict(prices)
+        max_rel = 0.0
+
         for market in problem.nodes:
             if market.name in {"ro", "pl"}:
                 continue
-            
+
             i_idx = problem.index_dict.get(market.name)
             if i_idx is None:
                 continue
-            
-            # Compute supply and demand at current price
+
             p_i = prices[market.name]
+
+            # supply/demand at current candidate price
             supply = float(market.inverse_supply(p_i))
             demand = float(market.inverse_demand(p_i))
-            
-            # Compute network imports/exports
+
+            # compute network imports/exports using current prices
             imports = 0.0
             exports = 0.0
-            
             for other in problem.nodes:
                 if other.name in {"ro", "pl"} or other.name == market.name:
                     continue
-                
                 j_idx = problem.index_dict.get(other.name)
                 if j_idx is None or problem.connection_matrix[i_idx][j_idx] != 1:
                     continue
-                
+
                 loss = (
                     problem.transmission_loss_matrix[i_idx][j_idx]
                     + problem.transmission_loss_matrix[j_idx][i_idx]
                 ) / 2.0
-                
+
                 p_j = prices[other.name]
-                
                 if p_i < p_j * loss:
                     other_supply = float(other.inverse_supply(p_j))
                     other_demand = float(other.inverse_demand(p_j))
                     exports += (1.0 / loss) * (other_supply - other_demand)
-                
                 if p_j < p_i * loss:
                     other_supply = float(other.inverse_supply(p_j))
                     other_demand = float(other.inverse_demand(p_j))
                     imports += loss * (other_demand - other_supply)
-            
-            # Excess: positive means price should rise
+
             excess = supply + imports - demand - exports
-            
-            # Price adjustment
-            new_prices[market.name] = p_i + alpha * excess
-            
-            # Keep prices in valid range
+
+            # scale by market volume to avoid giant jumps when volumes are large
+            denom = max(1.0, abs(supply) + abs(demand))
+            rel_step = alpha * (excess / denom)
+
+            # cap relative step
+            rel_step = max(-rel_change_cap, min(rel_change_cap, rel_step))
+
+            # multiplicative update (keeps prices positive and scale-aware)
+            proposed_p = p_i * (1.0 + rel_step)
+            if not np.isfinite(proposed_p) or proposed_p <= 0:
+                proposed_p = p_i + alpha * (excess / denom)
+
+            # clip to feasible market price range
             low = max(float(market.supply["price"].min()), float(market.demand["price"].min()), 0.0)
             high = min(float(market.supply["price"].max()), float(market.demand["price"].max()))
-            new_prices[market.name] = np.clip(new_prices[market.name], low, high)
-        
-        # Check convergence
-        delta = max(abs(new_prices[name] - prices[name]) for name in prices)
-        prices = new_prices
-        
-        if delta < tol:
+            proposed_p = float(np.clip(proposed_p, low, high))
+
+            proposed[market.name] = proposed_p
+
+            # record relative move for convergence check
+            rel = abs(proposed_p - p_i) / max(1e-9, abs(p_i))
+            max_rel = max(max_rel, rel)
+
+        # relax / smooth the proposed update to stabilize
+        for name in proposed:
+            prices[name] = (1.0 - relax) * prices[name] + relax * proposed[name]
+
+        if max_rel < tol:
             break
-    
-    # Store results
+
+    # store results
     for name, market in markets.items():
         market.adj_price = prices[name]
         market.adj_quantity = float(market.inverse_demand(market.adj_price))
@@ -190,6 +216,7 @@ def ode_based_greedy_search(budget_multiplier: float = 10.0, max_iterations: int
             
             test_edges = list(selected_edges) + [edge]
             test_problem, test_markets = _quiet_build(test_edges)
+           
             test_surplus = total_surplus(test_problem.nodes, adjusted=True)
             gain = test_surplus - base_surplus
             
@@ -200,9 +227,17 @@ def ode_based_greedy_search(budget_multiplier: float = 10.0, max_iterations: int
                 best_edge_cost = edge_cost
                 best_problem = test_problem
                 best_markets = test_markets
-        
+            
         if best_edge is None or best_edge_cost is None:
             print("[ode_greedy] no edge with positive gain found.", flush=True)
+            break
+
+        if best_edge_gain <= 0:
+            print(
+                f"[ode_greedy]   best edge {best_edge} has non-positive gain "
+                f"({best_edge_gain:.4f}); stopping.",
+                flush=True,
+            )
             break
         
         if total_cost + best_edge_cost > budget:
@@ -218,6 +253,15 @@ def ode_based_greedy_search(budget_multiplier: float = 10.0, max_iterations: int
         base_surplus = total_surplus(best_problem.nodes, adjusted=True)
         base_problem = best_problem
         base_markets = best_markets
+        for market in best_problem.nodes:
+            print(
+                f"  {market.name}: "
+                f"autarky={_fmt_price(market.price)}, "
+                f"adjusted={_fmt_price(market.adj_price)}, "
+                f"change={'None' if market.price is None or market.adj_price is None else f'{float(market.adj_price - market.price):+.4f}'}",
+                flush=True,
+            )
+
         
         print(
             f"[ode_greedy]   selected {best_edge[0]} -- {best_edge[1]}, "
@@ -225,6 +269,17 @@ def ode_based_greedy_search(budget_multiplier: float = 10.0, max_iterations: int
             f"total_surplus={base_surplus:.4f}, total_cost={total_cost:.2f}",
             flush=True,
         )
+
+        print("[ode_greedy]   updated equilibrium prices:", flush=True)
+        for market in best_problem.nodes:
+            if market.name in {"pl", "ro"}:
+                continue
+            print(
+                f"  {market.name}: autarky={_fmt_price(market.price)}, "
+                f"adjusted={_fmt_price(market.adj_price)}, "
+                f"change={'None' if market.price is None or market.adj_price is None else f'{float(market.adj_price - market.price):+.4f}'}",
+                flush=True,
+            )
     
     print(f"\n[ode_greedy] final selection:", flush=True)
     for edge in sorted(selected_edges):
@@ -236,7 +291,9 @@ def ode_based_greedy_search(budget_multiplier: float = 10.0, max_iterations: int
     for market in base_problem.nodes:
         if market.name in {"pl", "ro"}:
             continue
-        print(f"  {market.name}: {market.adj_price:.4f}", flush=True)
+        print(f"  {market.name}: {_fmt_price(market.adj_price)}", flush=True)
+
+    return selected_edges, base_problem, base_surplus
 
 
 if __name__ == "__main__":

@@ -2,12 +2,16 @@
 
 This does not modify the existing project files.
 It makes the node order deterministic, connects markets by name,
-handles multiple equilibrium intervals more safely, and keeps a
-separate adjusted price/quantity pass for surplus comparison.
+and prefers the LP-based equilibrium solver used by the newer
+Gurobi script when available.
+
+The binary-search equilibrium code is kept as a fallback/debug path.
 """
 
 from __future__ import annotations
 
+import contextlib
+import io
 from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
@@ -15,6 +19,10 @@ import numpy as np
 from load_data import load_dfs
 from markets import Market
 from constants import Constants
+
+
+np.random.seed(42)
+BASE_CONSTANTS = Constants()
 
 
 MARKET_ORDER = [
@@ -68,6 +76,14 @@ COORDS = {
 def build_problem() -> Tuple[Constants, Dict[str, Market]]:
     dfs = load_dfs()
     problem = Constants()
+
+    # Reuse a deterministic transmission-loss matrix so each solve sees
+    # the same network physics.
+    problem.transmission_loss_matrix = BASE_CONSTANTS.transmission_loss_matrix.copy()
+
+    # Keep the cost matrix layout consistent as well.
+    problem.cost_to_create_matrix = BASE_CONSTANTS.cost_to_create_matrix.copy()
+
     problem.nodes = []
 
     markets: Dict[str, Market] = {}
@@ -216,11 +232,11 @@ def binary_search_equilibrium(problem: Constants, market: Market, low: float, hi
             return mid
         
         if excess < 0:
-            # Excess supply: price too high
-            high = mid
-        else:
-            # Excess demand: price too low
+            # Excess supply: price too low
             low = mid
+        else:
+            # Excess demand: price too high
+            high = mid
         
         if high - low < tol:
             return (low + high) / 2.0
@@ -229,13 +245,23 @@ def binary_search_equilibrium(problem: Constants, market: Market, low: float, hi
 
 
 def solve_network_prices(problem: Constants, markets: Dict[str, Market], max_iter: int = 25) -> None:
-    """Solve network equilibrium using binary search on market-specific bounds.
-    
-    Binary search is much faster than grid evaluation:
-    - ~1000 evaluations max per market (typically 100-500)
-    - vs 2500 grid points per market
-    Speedup: ~50-70% reduction in computation time per solve.
+    """Solve network equilibrium.
+
+    Prefer the LP-based solver from new_gurobi_atempt because it returns
+    more stable dual prices than the local binary-search approximation.
+    If the LP solver is unavailable, fall back to the binary-search path.
     """
+    try:
+        from new_gurobi_atempt import solve_network_equilibrium as gurobi_solve_network_equilibrium
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            model = gurobi_solve_network_equilibrium(list(markets.values()), problem, verbose=False)
+        if model is not None:
+            return
+    except Exception:
+        pass
+
     prices_by_name = {name: market.price for name, market in markets.items()}
     frozen = frozen_markets(problem, prices_by_name)
 

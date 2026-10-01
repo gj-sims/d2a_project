@@ -25,6 +25,10 @@ from network_fix import build_problem, solve_network_prices, total_surplus
 Edge = Tuple[str, str]
 
 
+def _fmt_price(value):
+    return "None" if value is None else f"{float(value):.4f}"
+
+
 def _quiet_build(extra_edges: Sequence[Edge] = ()):
     """Build and solve a network quietly."""
     buffer = io.StringIO()
@@ -115,6 +119,14 @@ def greedy_search(budget_multiplier: float = 10.0, max_iterations: int = 50) -> 
         if best_edge is None or best_edge_cost is None:
             print("[greedy] no edge with positive gain found.", flush=True)
             break
+
+        if best_edge_gain <= 0:
+            print(
+                f"[greedy]   best edge {best_edge} has non-positive gain "
+                f"({best_edge_gain:.4f}); stopping.",
+                flush=True,
+            )
+            break
         
         if total_cost + best_edge_cost > budget:
             print(
@@ -129,13 +141,24 @@ def greedy_search(budget_multiplier: float = 10.0, max_iterations: int = 50) -> 
         base_surplus = total_surplus(best_problem.nodes, adjusted=True)
         base_problem = best_problem
         base_markets = best_markets
-        
+
         print(
             f"[greedy]   selected {best_edge[0]} -- {best_edge[1]}, "
             f"cost={best_edge_cost:.2f}, gain={best_edge_gain:.4f}, "
             f"total_surplus={base_surplus:.4f}, total_cost={total_cost:.2f}",
             flush=True,
         )
+
+        print("[greedy]   updated equilibrium prices:", flush=True)
+        for market in best_problem.nodes:
+            if market.name in {"pl", "ro"}:
+                continue
+            print(
+                f"  {market.name}: autarky={_fmt_price(market.price)}, "
+                f"adjusted={_fmt_price(market.adj_price)}, "
+                f"change={'None' if market.price is None or market.adj_price is None else f'{float(market.adj_price - market.price):+.4f}'}",
+                flush=True,
+            )
     
     print(f"\n[greedy] final selection:", flush=True)
     for edge in sorted(selected_edges):
@@ -148,6 +171,8 @@ def greedy_search(budget_multiplier: float = 10.0, max_iterations: int = 50) -> 
         if market.name in {"pl", "ro"}:
             continue
         print(f"  {market.name}: {market.adj_price:.4f}", flush=True)
+
+    return selected_edges, base_problem, base_surplus
 
 
 if __name__ == "__main__":
