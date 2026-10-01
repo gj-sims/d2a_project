@@ -2,12 +2,16 @@
 
 This does not modify the existing project files.
 It makes the node order deterministic, connects markets by name,
-handles multiple equilibrium intervals more safely, and keeps a
-separate adjusted price/quantity pass for surplus comparison.
+and prefers the LP-based equilibrium solver used by the newer
+Gurobi script when available.
+
+The binary-search equilibrium code is kept as a fallback/debug path.
 """
 
 from __future__ import annotations
 
+import contextlib
+import io
 from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
@@ -15,6 +19,10 @@ import numpy as np
 from load_data import load_dfs
 from markets import Market
 from constants import Constants
+
+
+np.random.seed(42)
+BASE_CONSTANTS = Constants()
 
 
 MARKET_ORDER = [
@@ -68,6 +76,14 @@ COORDS = {
 def build_problem() -> Tuple[Constants, Dict[str, Market]]:
     dfs = load_dfs()
     problem = Constants()
+
+    # Reuse a deterministic transmission-loss matrix so each solve sees
+    # the same network physics.
+    problem.transmission_loss_matrix = BASE_CONSTANTS.transmission_loss_matrix.copy()
+
+    # Keep the cost matrix layout consistent as well.
+    problem.cost_to_create_matrix = BASE_CONSTANTS.cost_to_create_matrix.copy()
+
     problem.nodes = []
 
     markets: Dict[str, Market] = {}
@@ -203,7 +219,49 @@ def frozen_markets(problem: Constants, prices_by_name: Dict[str, float]) -> set[
     return frozen
 
 
+def binary_search_equilibrium(problem: Constants, market: Market, low: float, high: float, prices_by_name: Dict[str, float], tol: float = 1e-6, max_iter: int = 1000) -> float:
+    """Find equilibrium price for a market using binary search.
+    
+    This is much faster than grid evaluation (1000 iterations max vs 2501 grid points).
+    """
+    for _ in range(max_iter):
+        mid = (low + high) / 2.0
+        excess = network_excess(problem, market, mid, prices_by_name)
+        
+        if abs(excess) < tol:
+            return mid
+        
+        if excess < 0:
+            # Excess supply: price too low
+            low = mid
+        else:
+            # Excess demand: price too high
+            high = mid
+        
+        if high - low < tol:
+            return (low + high) / 2.0
+    
+    return (low + high) / 2.0
+
+
 def solve_network_prices(problem: Constants, markets: Dict[str, Market], max_iter: int = 25) -> None:
+    """Solve network equilibrium.
+
+    Prefer the LP-based solver from new_gurobi_atempt because it returns
+    more stable dual prices than the local binary-search approximation.
+    If the LP solver is unavailable, fall back to the binary-search path.
+    """
+    try:
+        from new_gurobi_atempt import solve_network_equilibrium as gurobi_solve_network_equilibrium
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            model = gurobi_solve_network_equilibrium(list(markets.values()), problem, verbose=False)
+        if model is not None:
+            return
+    except Exception:
+        pass
+
     prices_by_name = {name: market.price for name, market in markets.items()}
     frozen = frozen_markets(problem, prices_by_name)
 
@@ -226,25 +284,8 @@ def solve_network_prices(problem: Constants, markets: Dict[str, Market], max_ite
                 updated[market.name] = float(market.price)
                 continue
 
-            grid = np.linspace(low, high, 2501)
-            excess = np.array([
-                network_excess(problem, market, float(p), prices_by_name) for p in grid
-            ])
-
-            near_zero = np.abs(excess) <= 1e-8
-            zero_segments = contiguous_segments(near_zero)
-            if zero_segments:
-                best_start, best_end = max(zero_segments, key=lambda seg: seg[1] - seg[0])
-                chosen = float((grid[best_start] + grid[best_end]) / 2.0)
-            else:
-                signs = np.sign(excess)
-                sign_change = np.where(signs[:-1] * signs[1:] < 0)[0]
-                if len(sign_change) > 0:
-                    idx = int(sign_change[0])
-                    chosen = float((grid[idx] + grid[idx + 1]) / 2.0)
-                else:
-                    chosen = float(grid[int(np.argmin(np.abs(excess)))])
-
+            # Use binary search instead of grid evaluation
+            chosen = binary_search_equilibrium(problem, market, low, high, prices_by_name)
             updated[market.name] = chosen
 
         delta = max(abs(updated[name] - prices_by_name[name]) for name in updated)

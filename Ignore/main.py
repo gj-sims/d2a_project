@@ -134,7 +134,7 @@ print("DID THIS WORK (NO!)", post_surplus-pre_surplus)
 
 for market in problem.nodes:
     market.plot_functions("quantity")
-    market.plot_functions("price")
+    # market.plot_functions("price")
 
 for market in problem.nodes:
     if market.name == 'ro' or market.name == 'pl':
@@ -142,6 +142,9 @@ for market in problem.nodes:
     print(market.name, market.adj_price-market.price)
 
 
+for market in problem.nodes:
+    if market.name == 'dk':
+        market.plot_functions()
 
 # #Current total surplus
 # total_surplus = 0

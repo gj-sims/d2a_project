@@ -1,0 +1,371 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1in]{geometry}
+
+\title{Network Equilibrium and Greedy Network Expansion}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Sets and Parameters}
+
+Let $N$ be the set of markets and $E$ the set of all possible undirected transmission edges.
+Let $E_t$ denote the network at greedy iteration $t$.
+
+For each market $i\in N$:
+
+\begin{itemize}
+    \item $g_i$ = production quantity,
+    \item $q_i$ = consumption quantity,
+    \item $S_i(q)$ = supply price function,
+    \item $D_i(q)$ = demand price function.
+\end{itemize}
+
+For each transmission direction $i\rightarrow j$:
+
+\[
+\lambda_{ij}\in(0,1]
+\]
+
+is the fraction of transmitted energy received.
+
+For each edge $e=(i,j)$:
+
+\[
+c_e = \text{construction cost}.
+\]
+
+The total construction budget is
+
+\[
+B = 10\max_{e\in E}c_e.
+\]
+
+For 11 markets,
+
+\[
+|E|=\binom{11}{2}=55.
+\]
+
+With 11 initial edges,
+
+\[
+|E_0|=11,\qquad |E\setminus E_0|=44.
+\]
+
+\section{Step-Function Blocks}
+
+For supply block $k$ at market $i$, let
+
+\[
+K^S_{ik}=\text{capacity},\qquad
+p^S_{ik}=\text{price},
+\]
+
+and let
+
+\[
+x^S_{ik}\in[0,K^S_{ik}]
+\]
+
+be the quantity used from the block.
+
+For demand blocks,
+
+\[
+K^D_{ik}=\text{capacity},\qquad
+p^D_{ik}=\text{price},
+\]
+
+with
+
+\[
+x^D_{ik}\in[0,K^D_{ik}].
+\]
+
+Total production and consumption are
+
+\[
+g_i=a^S_i+\sum_k x^S_{ik},
+\]
+
+\[
+q_i=a^D_i+\sum_k x^D_{ik},
+\]
+
+where $a^S_i$ and $a^D_i$ are the minimum observed quantities.
+
+\section{Sequential Block Constraints}
+
+Let
+
+\[
+z^S_{ik},z^D_{ik}\in\{0,1\}
+\]
+
+indicate whether a block is completed.
+
+For supply:
+
+\[
+x^S_{ik}\ge K^S_{ik}z^S_{ik},
+\]
+
+\[
+x^S_{i,k+1}\le K^S_{i,k+1}z^S_{ik}.
+\]
+
+For demand:
+
+\[
+x^D_{ik}\ge K^D_{ik}z^D_{ik},
+\]
+
+\[
+x^D_{i,k+1}\le K^D_{i,k+1}z^D_{ik}.
+\]
+
+These constraints force blocks to be filled sequentially.
+
+\section{Network Flows}
+
+For every active edge $(i,j)\in E_t$, define
+
+\[
+f_{ij}\ge0,\qquad f_{ji}\ge0
+\]
+
+and a binary direction variable
+
+\[
+y_{ij}\in\{0,1\}.
+\]
+
+The direction constraints are
+
+\[
+f_{ij}\le My_{ij},
+\]
+
+\[
+f_{ji}\le M(1-y_{ij}),
+\]
+
+where $M$ is sufficiently large.
+
+Thus, an edge can carry flow in at most one direction.
+
+\section{Market Balance}
+
+For every market $i$,
+
+\[
+\boxed{
+g_i+
+\sum_{j:(j,i)\in E_t}
+\lambda_{ji}f_{ji}
+=
+q_i+
+\sum_{j:(i,j)\in E_t}
+f_{ij}
+}
+\]
+
+Production plus received imports equals consumption plus exports.
+
+\section{Inner Network Equilibrium}
+
+For a fixed network $E_t$, the Gurobi model solves
+
+\[
+\boxed{
+W(E_t)=
+\max
+\sum_{i\in N}
+\left[
+\sum_k p^D_{ik}x^D_{ik}
+-
+\sum_k p^S_{ik}x^S_{ik}
+\right]
+}
+\]
+
+subject to the block, quantity, flow, direction, and market-balance constraints above.
+
+Equivalently,
+
+\[
+W(E_t)
+=
+\max
+\left[
+\sum_i B_i(q_i)
+-
+\sum_i C_i(g_i)
+\right].
+\]
+
+\section{Autarky}
+
+For each market, the autarky quantity satisfies
+
+\[
+S_i(q_i^A)=D_i(q_i^A).
+\]
+
+Autarky surplus is
+
+\[
+\boxed{
+W_A=
+\sum_{i\in N}
+\left[
+B_i(q_i^A)-C_i(q_i^A)
+\right].
+}
+\]
+
+\section{Greedy Network Expansion}
+
+Let the current network be $E_t$ and its optimized surplus be
+
+\[
+W_t=W(E_t).
+\]
+
+For each candidate edge
+
+\[
+e\in E\setminus E_t,
+\]
+
+temporarily add the edge:
+
+\[
+E_t^e=E_t\cup\{e\}.
+\]
+
+Solve the same inner equilibrium problem to obtain
+
+\[
+W_t^e=W(E_t\cup\{e\}).
+\]
+
+The marginal surplus gain is
+
+\[
+\boxed{
+\Delta W_t(e)
+=
+W(E_t\cup\{e\})-W(E_t).
+}
+\]
+
+An edge is eligible only if
+
+\[
+\boxed{
+C_t+c_e\le B
+}
+\]
+
+and
+
+\[
+\boxed{
+\Delta W_t(e)>0.50.
+}
+\]
+
+The selected edge is
+
+\[
+\boxed{
+e_t^*
+=
+\arg\max_{e}
+\Delta W_t(e)
+}
+\]
+
+over all eligible candidate edges.
+
+The network is then updated:
+
+\[
+\boxed{
+E_{t+1}=E_t\cup\{e_t^*\}
+}
+\]
+
+and
+
+\[
+\boxed{
+C_{t+1}=C_t+c_{e_t^*}.
+}
+\]
+
+The new equilibrium surplus is
+
+\[
+\boxed{
+W_{t+1}=W(E_{t+1}).
+}
+\]
+
+The process terminates when no affordable edge satisfies
+
+\[
+\Delta W_t(e)>0.50,
+\]
+
+or when the maximum number of iterations is reached.
+
+\section{Combined Model}
+
+The exact network-design problem represented by the nested formulation is
+
+\[
+\boxed{
+\begin{aligned}
+\max_{E'\subseteq E\setminus E_0}
+\quad&
+W(E_0\cup E')
+\\
+\text{s.t.}\quad&
+\sum_{e\in E'}c_e+
+\sum_{e\in E_0}c_e
+\le B,
+\end{aligned}
+}
+\]
+
+where $W(E)$ is itself the solution of the inner network-equilibrium optimization.
+
+The implemented method approximates this outer problem using the greedy rule
+
+\[
+\boxed{
+e_t^*
+=
+\arg\max_e
+\left[
+W(E_t\cup\{e\})-W(E_t)
+\right]
+}
+\]
+
+subject to the budget constraint and the minimum surplus-gain condition
+
+\[
+\boxed{
+W(E_t\cup\{e\})-W(E_t)>0.50.
+}
+\]
+
+\end{document}

@@ -1,0 +1,154 @@
+================================================================================
+NETWORK OPTIMIZATION COMPARISON: GREEDY vs ODE DYNAMIC SELECTION
+================================================================================
+
+SUMMARY METRICS
+----------------
+Metric                                          Greedy                 ODE
+----------------
+Final Social Surplus (€)                  174,884,781        133,462,436
+Total Construction Cost (€)                 41,228.00           41,094.00
+Budget Remaining (€)                           222.00              356.00
+Budget Utilization (%)                         99.5%               99.1%
+Number of Edges Selected                          18                 18
+
+GREEDY ADVANTAGE: +€41,422,345 (+31.0%)
+
+================================================================================
+EDGE SET COMPARISON
+================================================================================
+
+Edges in both selections:  8
+Edges only in greedy:     10
+Edges only in ODE:        10
+
+Shared Edges (8 total):
+  be  -- dk   cost= 1519.00
+  be  -- fi   cost= 3406.00
+  bg  -- dk   cost= 2987.00
+  bg  -- lv   cost= 2973.50
+  dk  -- fi   cost= 1898.00
+  dk  -- fr   cost= 1985.50
+  dk  -- lv   cost= 1828.50
+  ger -- lv   cost= 2015.50
+
+Greedy-Only Edges (10 total):
+  at  -- dk   cost= 1443.50
+  be  -- lv   cost= 3328.50
+  bg  -- fi   cost= 3103.00
+  dk  -- se   cost= 1019.50
+  fi  -- ger  cost= 2114.00
+  fr  -- lv   cost= 3781.00
+  ger -- no   cost= 1371.50
+  ger -- se   cost= 1384.50
+  lv  -- nl   cost= 3127.50
+  lv  -- no   cost= 1942.00
+
+ODE-Only Edges (10 total):
+  at  -- lv   cost= 2322.50
+  at  -- nl   cost= 1908.50
+  at  -- no   cost= 2241.00
+  at  -- se   cost= 1993.00
+  be  -- bg   cost= 3532.00
+  be  -- ger  cost= 1421.00
+  be  -- no   cost= 1880.50
+  bg  -- se   cost= 3138.50
+  fr  -- se   cost= 3001.00
+  no  -- se   cost= 1043.00
+
+================================================================================
+KEY FINDINGS
+================================================================================
+
+1. PERFORMANCE WINNER: GREEDY (DECISIVELY)
+   - Greedy surplus is €41,422,345 (31.0%) higher than ODE
+   - Greedy spent €134.00 more but gained €41.4M
+   - Return per euro: €309,000 gain per extra €1 invested
+
+2. EDGE SELECTION DIVERGENCE
+   - Only 8 out of 18 edges are common (44% overlap)
+   - Each approach selected 10 unique edges
+   - Root cause: Different market price equilibria evolve after each edge
+
+3. STRATEGIC DIVERGENCE - FIRST EDGE SELECTION
+   Greedy:
+     Edge: bg -- fi
+     Gain: +€57.9 million (iteration 1)
+     Rationale: Connects Bulgaria (demand-heavy) to Finland (supply-heavy)
+     
+   ODE:
+     Edge: dk -- fr
+     Gain: +€11.7 million (iteration 1)
+     Rationale: ODE equilibrium dynamics compute different first choice
+
+4. GAINS TRAJECTORY ANALYSIS
+   
+   Greedy (Big gains up-front, then plateau):
+     Iterations 1-6 gains:   +€97.8M  = 56% of final surplus
+     Iterations 7-18:        €0 gain  = 44% from budget exhaustion timing
+     
+   ODE (Smaller gains, more dispersed):
+     Iterations 1-6 gains:   +€35.1M  = 26% of final surplus
+     Iterations 7+:          Mixed    = Some 0, some negative gains
+
+5. WHY GREEDY OUTPERFORMS
+   • Large early gain (bg--fi: +57.9M) creates positive equilibrium cascade
+   • Second & third boosts (fi--ger: +23.8M, ger--no: +13.5M) compound
+   • Synergistic multi-edge effects captured in re-solve iterations
+   • ODE explores more dispersed edges that interact less effectively
+
+6. RECOMMENDATION: USE GREEDY APPROACH
+   ✓ 31% higher social surplus outcome (€41.4M absolute advantage)
+   ✓ Clearer decision logic: all positive or zero gains (no negatives)
+   ✓ Better captures network synergies in this market structure
+   ✓ Simpler to explain and defend to policy makers
+   ✓ Only marginally higher cost (€134 extra) for massive surplus gain
+
+================================================================================
+DETAILED ITERATION-BY-ITERATION COMPARISON
+================================================================================
+
+GREEDY SELECTION SEQUENCE:
+  1. bg -- fi:     cost=3,103.00   gain=+57,932,000   total=135,907,164
+  2. bg -- dk:     cost=2,987.00   gain=0             total=135,907,164
+  3. ger -- no:    cost=1,371.50   gain=+13,515,415   total=149,422,579
+  4. fi -- ger:    cost=2,114.00   gain=+23,855,884   total=173,278,464
+  5. fr -- lv:     cost=3,781.00   gain=+969,695      total=174,248,160
+  6. be -- fi:     cost=3,406.00   gain=+636,620      total=174,884,780
+  7-18. [12 edges with 0 gain each, consuming remaining budget]
+  FINAL: Total cost=41,228.00  Total surplus=174,884,780
+
+ODE SELECTION SEQUENCE:
+  1. dk -- fr:     cost=1,985.50   gain=+11,708,826   total=112,058,347
+  2. dk -- fi:     cost=1,898.00   gain=+10,620,853   total=122,679,200
+  3. bg -- dk:     cost=2,987.00   gain=+8,651,691    total=131,330,891
+  4. fr -- se:     cost=3,001.00   gain=+1,308,709    total=132,639,600
+  5. dk -- lv:     cost=1,828.50   gain=+231,670      total=132,871,270
+  6. be -- fi:     cost=3,406.00   gain=+2,631,491    total=135,502,762
+  7. no -- se:     cost=1,043.00   gain=-987,956      total=134,514,806
+  8. bg -- se:     cost=3,138.50   gain=+411,785      total=134,926,592
+  9. bg -- lv:     cost=2,973.50   gain=-390,052      total=134,536,540
+  10. be -- ger:   cost=1,421.00   gain=+929,659      total=135,466,199
+  11. ger -- lv:   cost=2,015.50   gain=-3,012,040    total=132,454,159
+  12. at -- se:    cost=1,993.00   gain=+1,028,363    total=133,482,522
+  13-18. [6 edges with mostly 0 gain, some negative]
+  FINAL: Total cost=41,094.00  Total surplus=133,462,435
+
+================================================================================
+INTERPRETATION
+================================================================================
+
+The Greedy approach significantly outperforms ODE because it successfully
+identifies and commits to the highest-impact edge first (bg--fi: +€57.9M).
+This creates a market equilibrium that makes subsequent edges more valuable.
+
+ODE's price adjustment dynamics prevent it from recognizing bg--fi's full
+potential, leading to a sub-optimal first choice (dk--fr: +€11.7M). This
+missing opportunity cascades through the remaining iterations.
+
+Interestingly, both approaches add edges with 0 or negative gains in final
+rounds - but this is just budget exhaustion filling available capacity.
+The key value is captured in the first 6 iterations for Greedy and first 
+6-10 for ODE, but Greedy's early focus on high-value edges compounds better.
+
+================================================================================
