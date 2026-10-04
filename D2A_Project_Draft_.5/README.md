@@ -6,6 +6,11 @@ Updated 10/1/26
 ## Overview:
 This repository analyses a energy market network to find the social surplus maximizing investments while constrained by a budget. The analysis can be run by running gurobi_v3_outer.py.
 
+The root-level `D2A_Electricity_Market_Coupling.ipynb` is a notebook-based
+formulation that extends the fixed-network Draft 1 model with uniform
+transmission losses and greedy edge expansion under a budget. Its capacities,
+loss rate, coordinates, and candidate-edge capacity are illustrative inputs.
+
 
 ## OOP Initializaiotn
 Nodes represent countries and are stored as market objects which have supply and demand dataframes and step-functions, latitude and longitude coordinates of the capital city, and a function to plot supply and demand curves. Poland and Romania has some issues being loaded so are not in the model but can be added if desirable. JSON data from Nord Pool for each market is in the data folder.
