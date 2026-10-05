@@ -19,6 +19,39 @@ MARKET_COORDINATES = {
     "SE": (59.3300, 18.0600),
 }
 
+INTERCONNECTORS = [
+    ("AT", "DE-LU", 4_000.0),
+    ("BE", "DE-LU", 2_000.0),
+    ("BE", "FR", 3_500.0),
+    ("BE", "NL", 2_400.0),
+    ("DE-LU", "FR", 4_000.0),
+    ("DE-LU", "NL", 5_000.0),
+    ("DE-LU", "PL", 2_500.0),
+    ("DE-LU", "DK", 2_500.0),
+    ("DE-LU", "SE", 600.0),
+    ("DK", "NL", 700.0),
+    ("DK", "NO", 1_700.0),
+    ("DK", "SE", 2_000.0),
+    ("FI", "NO", 100.0),
+    ("FI", "SE", 2_700.0),
+    ("NO", "NL", 700.0),
+    ("NO", "SE", 3_500.0),
+    ("BALTIC", "FI", 1_000.0),
+    ("BALTIC", "PL", 500.0),
+    ("BALTIC", "SE", 700.0),
+    ("PL", "SE", 600.0),
+    ("BG", "RO", 1_500.0),
+]
+
+missing_markets = {
+    market
+    for from_market, to_market, _ in INTERCONNECTORS
+    for market in (from_market, to_market)
+    if market not in MARKET_COORDINATES
+}
+if missing_markets:
+    raise ValueError(f"Missing map coordinates for markets: {sorted(missing_markets)}")
+
 
 # ------------------------------------------------------------
 # FIGURE
@@ -70,6 +103,45 @@ ax.add_feature(
     linewidth=0.8,
     zorder=3
 )
+
+# ------------------------------------------------------------
+# INTERCONNECTORS
+# ------------------------------------------------------------
+
+MIN_EDGE_WIDTH = 0.8
+MAX_EDGE_WIDTH = 3.2
+MIN_CAPACITY = min(capacity for _, _, capacity in INTERCONNECTORS)
+MAX_CAPACITY = max(capacity for _, _, capacity in INTERCONNECTORS)
+
+for from_market, to_market, capacity in INTERCONNECTORS:
+    from_lat, from_lon = MARKET_COORDINATES[from_market]
+    to_lat, to_lon = MARKET_COORDINATES[to_market]
+    width = MIN_EDGE_WIDTH + (
+        (capacity - MIN_CAPACITY) / (MAX_CAPACITY - MIN_CAPACITY)
+    ) * (MAX_EDGE_WIDTH - MIN_EDGE_WIDTH)
+    ax.plot(
+        [from_lon, to_lon],
+        [from_lat, to_lat],
+        color="#527A9E",
+        linewidth=width,
+        alpha=0.72,
+        transform=ccrs.PlateCarree(),
+        zorder=5,
+    )
+
+legend_capacities = (500.0, 2_000.0, 4_000.0, 5_000.0)
+legend_handles = [
+    plt.Line2D(
+        [0],
+        [0],
+        color="#527A9E",
+        linewidth=MIN_EDGE_WIDTH + (
+            (capacity - MIN_CAPACITY) / (MAX_CAPACITY - MIN_CAPACITY)
+        ) * (MAX_EDGE_WIDTH - MIN_EDGE_WIDTH),
+        label=f"{capacity:,.0f} MW",
+    )
+    for capacity in legend_capacities
+]
 
 
 # ------------------------------------------------------------

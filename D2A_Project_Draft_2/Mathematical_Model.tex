@@ -1,0 +1,458 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\title{Mathematical Model for D2A Project Draft 2}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Scope and interpretation}
+
+Draft 2 clears a single selected quarter-hour of submitted supply and demand
+bids across the modeled bidding areas. It compares an autarkic case (no
+interconnectors) with a capacity-constrained transport network that includes
+approximate resistive losses. An optional outer-loop heuristic evaluates new
+links and one-step conductor upgrades.
+
+The dispatch model maximizes submitted demand value less submitted supply cost.
+It does not include investment costs in this market-clearing objective.
+Investment costs are used only to test budget feasibility in the outer search.
+Welfare is expressed in EUR/hour because prices are in EUR/MWh and quantities
+are in MW. For one 15-minute interval, multiply a welfare value or gain in
+EUR/hour by \(0.25\) hours.
+
+This is an illustrative transport model, not an AC or DC optimal power-flow
+model. It does not enforce voltage, reactive-power, Kirchhoff-voltage, loop-flow,
+unit-commitment, reserve, or reliability constraints.
+
+\section{Sets, inputs, and bid blocks}
+
+Let \(\mathcal{N}\) denote bidding areas and \(\mathcal{E}\) the set of
+undirected interconnectors. Each edge \(e\in\mathcal{E}\) has a designated
+orientation \(i(e)\to j(e)\) for bookkeeping; the physical flow may use either
+direction. Let \(\mathcal{S}_n\) and \(\mathcal{D}_n\) be the supply and demand
+blocks for area \(n\).
+
+For each supply block \(s\in\mathcal{S}_n\), let \(q^S_{ns}\) be its maximum
+quantity in MW and \(p^S_{ns}\) its offer price in EUR/MWh. For each demand
+block \(d\in\mathcal{D}_n\), let \(q^D_{nd}\) and \(p^D_{nd}\) denote its maximum
+quantity and bid price, respectively.
+
+The source schedules are cumulative. They are converted into incremental
+blocks in source order: the first block quantity is the first cumulative
+quantity measured from zero, and each subsequent quantity is the increase over
+the previous cumulative quantity. Quantity decreases beyond tolerance are
+rejected. Zero-quantity steps are omitted, and adjacent blocks with the same
+price (within tolerance) are merged.
+
+\section{Market-clearing variables and objective}
+
+Let \(x^S_{ns}\) be accepted supply and \(x^D_{nd}\) accepted demand, both in
+MW. The welfare-maximizing dispatch problem is
+\begin{align}
+\max_{x^S,x^D,f,\ell,z}\quad
+W &=
+\sum_{n\in\mathcal{N}}\sum_{d\in\mathcal{D}_n}
+    p^D_{nd}x^D_{nd}
+-\sum_{n\in\mathcal{N}}\sum_{s\in\mathcal{S}_n}
+    p^S_{ns}x^S_{ns}
+\label{eq:welfare}\\
+\text{subject to}\quad
+0\le x^S_{ns} &\le q^S_{ns}
+&& \forall n,\ s\in\mathcal{S}_n,
+\label{eq:supply-bounds}\\
+0\le x^D_{nd} &\le q^D_{nd}
+&& \forall n,\ d\in\mathcal{D}_n.
+\label{eq:demand-bounds}
+\end{align}
+
+Thus accepted demand contributes its bid value and accepted supply incurs its
+offer cost. The objective has units EUR/hour and excludes capital expenditure.
+
+\section{Directional flows and nodal balances}
+
+For each edge \(e\), let \(f_e^+\) denote sending flow from \(i(e)\) to
+\(j(e)\), and \(f_e^-\) sending flow from \(j(e)\) to \(i(e)\). Let
+\(\ell_e^+\) and \(\ell_e^-\) be the corresponding transmission losses, in MW.
+The binary variable \(z_e\) selects the permitted direction:
+\begin{align}
+0\le f_e^+ &\le F_e z_e,\\
+0\le f_e^- &\le F_e(1-z_e),\\
+z_e &\in \{0,1\}.
+\end{align}
+Consequently, simultaneous counterflows on a link are prohibited.
+
+For a node \(n\), define its net flow contribution \(g_{ne}\) from edge \(e\)
+as
+\[
+g_{ne} =
+\begin{cases}
+-f_e^+ + f_e^- - \ell_e^-,
+    & n=i(e),\\[2pt]
+ f_e^+ - \ell_e^+ - f_e^-,
+    & n=j(e),\\[2pt]
+0, & n\notin\{i(e),j(e)\}.
+\end{cases}
+\]
+The nodal energy-balance constraints are
+\begin{equation}
+\sum_{s\in\mathcal{S}_n}x^S_{ns}
+-\sum_{d\in\mathcal{D}_n}x^D_{nd}
++\sum_{e\in\mathcal{E}}g_{ne}=0
+\qquad \forall n\in\mathcal{N}.
+\label{eq:balance}
+\end{equation}
+An outgoing flow is measured at its sending end; at its receiving end, the
+received quantity is sending flow less the associated loss.
+
+\section{Electrical limits and approximate losses}
+
+For each edge, the model uses an estimated length \(L_e\) in km, base conductor
+radius \(r_e\), resistivity \(\rho_e\), line-to-line voltage \(V_e\), base
+current limit \(I^{\max}_e\), power factor \(\mathrm{PF}_e\), base transfer cap
+\(C_e\), and conductor area multiplier \(a_e\). The estimated conductor area,
+resistance, current limit, thermal transfer limit, and effective sending-flow
+limit are
+\begin{align}
+A_e &= \pi r_e^2 a_e,\\
+R_e &= \frac{\rho_e(1000L_e)}{A_e},\\
+I^{\max,\mathrm{up}}_e &= I^{\max}_e a_e,\\
+F^{\mathrm{thermal}}_e
+&= \frac{\sqrt{3}\,V_e I^{\max,\mathrm{up}}_e\mathrm{PF}_e}{10^6},\\
+F_e &= \min\{C_e,F^{\mathrm{thermal}}_e\}.
+\label{eq:flow-limit}
+\end{align}
+Here \(A_e\) is in m\(^2\), \(R_e\) in ohms, \(V_e\) in volts, current in
+amperes, and power limits in MW.
+
+For a sending power \(P\) in MW, the balanced three-phase approximation gives
+\begin{align}
+I_e(P) &= \frac{10^6P}{\sqrt{3}\,V_e\mathrm{PF}_e},\\
+\ell_e(P) &= \frac{3I_e(P)^2R_e}{10^6}\\
+&= \frac{R_e\,10^6}{V_e^2\mathrm{PF}_e^2}P^2
+\qquad \text{MW}.
+\label{eq:loss}
+\end{align}
+The model applies this relation separately to each direction:
+\begin{equation}
+\ell_e^+ = \widehat{\ell}_e(f_e^+),\qquad
+\ell_e^- = \widehat{\ell}_e(f_e^-).
+\label{eq:pwl-loss}
+\end{equation}
+The function \(\widehat{\ell}_e\) is the piecewise-linear interpolant of
+\(\ell_e(P)\) at nine evenly spaced points from \(0\) to \(F_e\), giving eight
+segments. Inactive-direction flow is zero and has zero modeled loss. This is a
+piecewise-linear approximation to the quadratic formula, not an exact AC
+network-loss calculation.
+
+\subsection{Illustrative electrical and distance assumptions}
+
+The notebook defaults to aluminium resistivity
+\(\rho=2.82\times10^{-8}\ \Omega\mathrm{m}\), conductor radius \(r=0.015\) m,
+line voltage \(V=400{,}000\) V, base current limit \(2{,}000\) A, and power
+factor \(1\). A conductor upgrade multiplies its area and modeled current limit
+by \(2\), holding the base radius fixed.
+
+Market-centre coordinates are used to estimate straight-line distance. For
+latitudes \(\phi_i,\phi_j\) and longitudes \(\lambda_i,\lambda_j\), in radians,
+the approximation is
+\begin{equation}
+L_{ij}=6371\sqrt{
+(\phi_j-\phi_i)^2+
+\left(\cos\frac{\phi_i+\phi_j}{2}\right)^2(\lambda_j-\lambda_i)^2
+}\quad\text{km}.
+\label{eq:distance}
+\end{equation}
+This approximation is not routed construction distance. The coordinates,
+capacities, and electrical parameters are editable illustrative inputs, not
+validated engineering data.
+
+\section{Investment candidates and costs}
+
+The outer search begins from a supplied starting network and evaluates actions
+over the one selected market period. Every pair of distinct markets is a
+potential build if it is not already linked. A new link has the configured
+candidate transfer capacity (by default, the median capacity in the starting
+network) and inherits the electrical defaults above.
+
+The new-build cost for pair \((i,j)\), in million GBP, is
+\begin{equation}
+c^{\mathrm{build}}_{ij}
+= \left\lfloor 1.6 L_{ij}\right\rfloor.
+\label{eq:build-cost}
+\end{equation}
+For an existing, not-yet-upgraded link \(e\), the one-step upgrade cost is
+\begin{equation}
+c^{\mathrm{upgrade}}_e
+=0.40(1.6)L_e
+=0.64L_e
+\quad\text{million GBP}.
+\label{eq:upgrade-cost}
+\end{equation}
+An upgrade sets \(a_e=2\) and doubles the link's base transfer cap. At most one
+such upgrade is allowed per link. No action changes the bid curves.
+
+\section{Greedy investment heuristic}
+
+Let \(W(G)\) denote the optimal welfare from
+Equations~\ref{eq:welfare}--\ref{eq:pwl-loss} for network \(G\), and let
+\(G_k\) be the network after \(k\) accepted actions. The search budget is
+\begin{equation}
+B = 10\max_{i<j} c^{\mathrm{build}}_{ij}
+\quad\text{million GBP},
+\label{eq:budget}
+\end{equation}
+using the configured default budget multiplier of \(10\). With cumulative
+spending \(S_k\), the feasible candidate set at iteration \(k\) consists of
+unbuilt links and not-yet-upgraded existing links whose cost \(c_a\) satisfies
+\[
+S_k+c_a\le B.
+\]
+For every feasible action \(a\), the notebook solves market clearing on the
+trial network \(G_k\oplus a\) and computes its one-step incremental welfare:
+\begin{equation}
+\Delta W_{a,k}=W(G_k\oplus a)-W(G_k).
+\end{equation}
+It selects the affordable action with the greatest absolute \(\Delta W_{a,k}\),
+not the greatest welfare gain per pound:
+\begin{equation}
+a_k\in\arg\max_{a:\,S_k+c_a\le B}\Delta W_{a,k}.
+\end{equation}
+The chosen action is accepted only if its gain is greater than the configured
+minimum threshold (default \(0.50\) EUR/hour). The search stops when no
+affordable candidates remain, the best gain does not exceed the threshold, the
+budget is reached, or the iteration limit (default \(50\)) is reached.
+
+This is a one-action-at-a-time greedy heuristic. It does not enumerate all
+multi-action portfolios and does not guarantee a globally optimal investment
+plan. Capital costs are in GBP while welfare gains are in EUR/hour; the search
+uses costs only for budget feasibility and does not perform a discounted
+benefit--cost analysis or convert currencies.
+
+\section{Nodal-price diagnostics}
+
+The primary dispatch is a mixed-integer optimization because of the
+direction-selection variables. When price diagnostics are requested, the
+notebook fixes each edge's selected direction and the piecewise-loss segment
+containing its primary-solution flow, then solves a local continuous
+piecewise-linear problem. The reported nodal price is derived from the dual
+value of the corresponding nodal balance constraint in that local problem.
+These are local marginal-price diagnostics conditional on the primary
+direction/segment choices, not unrestricted dual prices of the mixed-integer
+problem.
+
+\section{Summary of limitations}
+
+\begin{itemize}[leftmargin=*]
+\item Only one selected quarter-hour is optimized in a run; outcomes should not
+      be interpreted as daily or annual welfare without solving and aggregating
+      the corresponding periods.
+\item The transport representation does not model full AC power flow, voltage
+      variation, reactive power, parallel circuits, or Kirchhoff-voltage laws.
+\item Resistivity, coordinates, route lengths, capacities, and investment costs
+      are illustrative and should be replaced or validated before engineering or
+      empirical conclusions are drawn.
+\item The greedy search is path-dependent and myopic. Its selected actions can
+      differ from those in a multi-period or globally optimized investment
+      formulation.
+\item A financial appraisal requires consistent currency, investment timing,
+      asset life, discounting, and a benefit horizon.
+\end{itemize}
+
+\appendix
+\section{Complete algebraic formulation}
+
+This appendix collects the market-clearing problem as one explicit
+mixed-integer piecewise-linear program and states how it is embedded in the
+multi-start investment experiment. For each market-clearing solve, the network
+and its edge parameters are fixed inputs. The outer greedy search changes that
+network between solves; investment decisions are not simultaneous decision
+variables in the market-clearing program.
+
+\subsection{Index sets and parameters}
+
+\begin{itemize}[leftmargin=*]
+\item \(N\): bidding areas; \(E\): undirected links in the network being solved.
+\item \(S_n,D_n\): supply and demand blocks at area \(n\).
+\item \(q^S_{ns},p^S_{ns}\): maximum supply quantity (MW) and offer price
+      (EUR/MWh).
+\item \(q^D_{nd},p^D_{nd}\): maximum demand quantity (MW) and bid price
+      (EUR/MWh).
+\item \(i(e),j(e)\): bookkeeping endpoints for edge \(e\).
+\item \(F_e\): effective sending-flow limit (MW), as defined in
+      Equation~\ref{eq:flow-limit}.
+\item \(K\): number of PWL segments, \(K=8\), with breakpoint index
+      \(m=0,\ldots,K\).
+\end{itemize}
+
+For each edge, define equally spaced flow breakpoints and their physical loss
+values by
+\begin{align}
+\xi_{em} &= \frac{m}{K}F_e,
+&&m=0,\ldots,K,\\
+\eta_{em} &= \ell_e(\xi_{em}),
+&&m=0,\ldots,K,
+\label{eq:breakpoint-values}
+\end{align}
+where \(\ell_e(\cdot)\) is the quadratic three-phase loss function in
+Equation~\ref{eq:loss}. The optimizer uses linear interpolation between
+successive points \((\xi_{em},\eta_{em})\).
+
+\subsection{Decision variables}
+
+For every block, \(x^S_{ns}\ge0\) and \(x^D_{nd}\ge0\) are accepted quantities
+in MW. For every edge, \(f_e^+,f_e^-\ge0\) and \(\ell_e^+,\ell_e^-\ge0\)
+are directional sending flows and losses in MW, and \(z_e\in\{0,1\}\)
+selects the direction. For the explicit PWL representation, let
+\(\lambda^+_{em},\lambda^-_{em}\ge0\) be interpolation weights for the two
+directions.
+
+\subsection{Market-clearing mixed-integer program}
+
+For fixed \(N,E,S_n,D_n\) and edge parameters, the primary dispatch problem is
+\begin{align}
+\max\quad
+&\sum_{n\in N}\sum_{d\in D_n}p^D_{nd}x^D_{nd}
+-\sum_{n\in N}\sum_{s\in S_n}p^S_{ns}x^S_{ns}
+\label{eq:full-objective}\\
+\text{subject to}\quad
+&0\le x^S_{ns}\le q^S_{ns}
+&&n\in N,\ s\in S_n,
+\label{eq:full-supply}\\
+&0\le x^D_{nd}\le q^D_{nd}
+&&n\in N,\ d\in D_n,
+\label{eq:full-demand}\\
+&0\le f_e^+\le F_ez_e
+&&e\in E,
+\label{eq:full-forward-cap}\\
+&0\le f_e^-\le F_e(1-z_e)
+&&e\in E,
+\label{eq:full-reverse-cap}\\
+&z_e\in\{0,1\}
+&&e\in E,
+\label{eq:full-direction}\\
+&\sum_{s\in S_n}x^S_{ns}-\sum_{d\in D_n}x^D_{nd}
+-\sum_{\substack{e\in E\\n=i(e)}}f_e^+
++\sum_{\substack{e\in E\\n=i(e)}}f_e^-
+-\sum_{\substack{e\in E\\n=i(e)}}\ell_e^-
+\nonumber\\
+&\quad
++\sum_{\substack{e\in E\\n=j(e)}}f_e^+
+-\sum_{\substack{e\in E\\n=j(e)}}\ell_e^+
+-\sum_{\substack{e\in E\\n=j(e)}}f_e^-=0
+&&n\in N,
+\label{eq:full-balance}\\
+&\sum_{m=0}^{K}\lambda^+_{em}=z_e
+&&e\in E,
+\label{eq:full-forward-lambda-sum}\\
+&\sum_{m=0}^{K}\lambda^-_{em}=1-z_e
+&&e\in E,
+\label{eq:full-reverse-lambda-sum}\\
+&f_e^+=\sum_{m=0}^{K}\xi_{em}\lambda^+_{em},
+\qquad
+\ell_e^+=\sum_{m=0}^{K}\eta_{em}\lambda^+_{em}
+&&e\in E,
+\label{eq:full-forward-pwl}\\
+&f_e^-=\sum_{m=0}^{K}\xi_{em}\lambda^-_{em},
+\qquad
+\ell_e^-=\sum_{m=0}^{K}\eta_{em}\lambda^-_{em}
+&&e\in E,
+\label{eq:full-reverse-pwl}\\
+&\lambda^+_{e\cdot}\text{ is SOS2},\qquad
+\lambda^-_{e\cdot}\text{ is SOS2}
+&&e\in E.
+\label{eq:full-sos2}
+\end{align}
+An SOS2 constraint means that at most two adjacent weights in the ordered
+breakpoint list may be nonzero. Equations~\ref{eq:full-forward-lambda-sum}
+--\ref{eq:full-sos2} implement the same directional PWL loss graph as the
+optimizer's piecewise-linear general constraints: the active direction's
+weights interpolate between adjacent breakpoints, while the inactive
+direction's weights, flow, and loss are zero. Equations~\ref{eq:full-forward-cap}
+--\ref{eq:full-direction} prohibit counterflow. Equation~\ref{eq:full-balance}
+withdraws sending flow at its source and injects received flow (sending flow
+minus loss) at its destination.
+
+For an empty link set \(E=\varnothing\), the same program reduces to independent
+market clearing (autarky), with no edge variables or edge-balance terms.
+
+\subsection{Outer greedy investment procedure}
+
+Let \(G_0\) be a run's starting network and let \(W(G)\) denote the optimal
+objective of Equations~\ref{eq:full-objective}--\ref{eq:full-sos2} on network
+\(G\). Potential build actions are all absent unordered pairs \(i<j\). A build
+uses the median starting-network capacity as its transfer cap and the default
+electrical parameters. Its cost is
+\[
+c^{\mathrm{build}}_{ij}
+=\left\lfloor1.6L_{ij}\right\rfloor
+\quad\text{million GBP}.
+\]
+Potential upgrade actions are links whose conductor multiplier remains below
+the one allowed upgraded value \(2\). An upgrade sets that multiplier to \(2\),
+doubles the link's base transfer cap, and costs
+\[
+c^{\mathrm{upgrade}}_e=0.64L_e
+\quad\text{million GBP}.
+\]
+The budget for a run is fixed as
+\[
+B=10\max_{i<j}c^{\mathrm{build}}_{ij}
+\quad\text{million GBP}.
+\]
+
+At iteration \(k\), let \(G_k\) be the current network and \(C_k\) the set of
+available build and upgrade actions. Let \(S_k\) be cumulative spending. The
+affordable set is
+\[
+\mathcal{A}_k=\{a\in C_k:S_k+c_a\le B\}.
+\]
+For each \(a\in\mathcal{A}_k\), the algorithm forms the trial network
+\(G_k\oplus a\), solves the complete market-clearing program, and computes
+\[
+\Delta W_{a,k}=W(G_k\oplus a)-W(G_k).
+\]
+If \(\mathcal{A}_k\) is empty, it stops. Otherwise it selects
+\[
+a_k\in\arg\max_{a\in\mathcal{A}_k}\Delta W_{a,k}.
+\]
+The action is accepted only when \(\Delta W_{a_k,k}>0.50\) EUR/hour. After
+acceptance, \(G_{k+1}=G_k\oplus a_k\) and
+\(S_{k+1}=S_k+c_{a_k}\). The search stops when the best increment is at or
+below the threshold, the budget is reached, or 50 actions have been accepted.
+The selector maximizes absolute welfare gain, not gain per unit of investment
+cost; it does not solve a global portfolio optimization.
+
+\subsection{Multi-start design}
+
+The experiment constructs ten connected starting networks over the 13 bidding
+areas. From the \(\binom{13}{2}\) possible unordered pairs, it first samples a
+spanning tree (12 edges) by applying a seeded random ordering and retaining
+edges that connect distinct components, then adds six randomly selected
+remaining pairs to obtain 16 links. Existing baseline pairs retain their
+configured edge parameters; other pairs receive the default candidate-link
+parameters. Candidate seeds are scanned from the fixed seed base, and a
+network is accepted only if it shares at most eight edges with every previously
+accepted starting network. Thus every pair of accepted starts differs by at
+least eight of its 16 edges.
+
+The same selected quarter-hour market data and greedy procedure are solved
+independently for each start. For run \(r\), total reported improvement is
+\[
+\Delta W_r=W(G_{r,\mathrm{final}})-W(G_{r,0}),
+\]
+while each selected-action gain is marginal relative to that run's current
+network at the corresponding iteration. Run comparisons and action-frequency,
+price, quantity, and gain-per-cost summaries are descriptive; none are optimized
+across runs. Ten different seeds explore starting-topology sensitivity but do
+not establish a global optimum or results for other delivery periods.
+
+\end{document}
